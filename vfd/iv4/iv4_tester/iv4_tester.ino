@@ -1,20 +1,33 @@
+#include <SPI.h>
 #include "iv4.h"
 
+#define USE_SPI
+#define	   DATA_PIN 11
+#define	   CLOCK_PIN 13
+#define	   LATCH_PIN 10 // 12 - only works if 1) meter leed attached 2) delay(1) after set LOW
+#ifdef USE_SPI
+#else // For shiftOut()
 #define    CLOCK_PIN   2    // ATMEGA:  4   74HC595 SPI Clock Pin, SCK (pin 11 - SHCP shift register clock input)
 #define    LATCH_PIN   3    // ATMEGA:  5   74HC595 SPI Latch Pin, RCK (pin 12 -  STCP storage register clock input)
 #define    DATA_PIN    4    // ATMEGA:  6   74HC595 SPI Data Pin, SER (pin 14)
+#endif
 
 #define    NUM_SEGMENTS 16  // Number of segments in the VFD
 #define    SEGMENT_DELAY 200
 #define    REDRAW_DELAY  1000
 
+#define		HC74595_CLOCK_MHZ 31000000 // 31000000 // Per spec (I think?)
+
 int NumSegments = -1; // Overridden by prompt
 
 void setup(){
   Serial.begin(9600); // debug
+  fuckf("74HC595 clock=%u, $latch=%u, data=%u\n", CLOCK_PIN, LATCH_PIN, DATA_PIN);
   pinMode(CLOCK_PIN, OUTPUT);       // Output Pin Initializer
   pinMode(LATCH_PIN, OUTPUT);
   pinMode(DATA_PIN, OUTPUT);
+
+  SPI.begin();
 
   //clearDisplay();
 }
@@ -45,7 +58,7 @@ void testChars() {
 	while (1) {
 		if (Serial.available() > 0) {
 			userWord = Serial.readString();
-			fuckf("User entered '%s'\n", userWord);
+			fuckf("User entered '%s'\n", userWord.c_str());
 			testOutput = userWord.c_str();
 		} else {
 //			testOutput = testWord;
@@ -55,9 +68,9 @@ void testChars() {
 			if (Serial.available() > 0) {
 				break; // Get the user's input
 			}
-			fuckf("testOutput[%d]=%c (%d)\n", i, testOutput[i], testOutput[i]);
+			//fuckf("testOutput[%d]=%c (%d)\n", i, testOutput[i], testOutput[i]);
 			displayBits(IV4.getc(testOutput[i]));
-			delay(20);
+			//delay(3);
 //			clearDisplay();
 		}
 		delay(1000);
@@ -83,13 +96,6 @@ void test1pin() {
 	sprintf(dbg, "writing %d: bit=0x%0x, lo=%0d,x%0x, hi=%0d,x%0x\n", data, data, lo, lo, hi, hi);
 	Serial.print(dbg);
 	displayBits(data);
-	/*
-	 *
-	digitalWrite(LATCH_PIN, LOW);
-	shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, (hi << 0));
-	shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, (lo << 0));
-	digitalWrite(LATCH_PIN, HIGH);
-	 */
 
 	delay(20*1000);
 
@@ -195,23 +201,45 @@ void displayBits(int data) {
 
     // debug
     char dbg[128];
-    sprintf(dbg, "data=%02d (%0x) - high: %0x, low: %0x\n", data, data, hi, lo);
-    Serial.print(dbg);
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    displayHiLo(hi, lo);
+    //sprintf(dbg, "data=%02d (%0x) - high: %0x, low: %0x\n", data, data, hi, lo);
+    //Serial.print(dbg);
 
     // debug
     digitalWrite(LED_BUILTIN, LOW);
+
+#ifdef USE_SPI
+    //digitalWrite(LATCH_PIN, LOW);
+    //delay(1);
+	//SPI.beginTransaction(SPISettings(HC74595_CLOCK_MHZ, MSBFIRST, SPI_MODE0));
+	//SPI.transfer(&data, 2); // I think the bytes are backwards to do this
+	//SPI.transfer(&hi, 1);
+	//SPI.transfer(&lo, 1);
+	//SPI.endTransaction();
+    //digitalWrite(LATCH_PIN, HIGH);
+	displayHiLo(hi, lo);
+#else
+	displayHiLo(hi, lo);
+#endif
+
+    // debug
+    digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void displayHiLo(int hi, int lo) {
 
     // Get the shift register ready!
     digitalWrite(LATCH_PIN, LOW);
+    //delay(1);
 
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, hi);
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, lo);
+#ifdef USE_SPI
+	SPI.beginTransaction(SPISettings(HC74595_CLOCK_MHZ, MSBFIRST, SPI_MODE0));
+	SPI.transfer(&hi,1);
+	SPI.transfer(&lo,1);
+	SPI.endTransaction();
+#else
+	shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, hi);
+	shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, lo);
+#endif
 
     digitalWrite(LATCH_PIN, HIGH);
 

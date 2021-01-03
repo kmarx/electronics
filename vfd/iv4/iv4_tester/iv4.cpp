@@ -43,7 +43,7 @@ uint16_t IV4Class::getc(char c) {
 		initialized = true;
 	}
 	uint8_t idx = getCharIndex(c);
-	logf("getc=%c index=%d, bits=%#x\n", c, idx, chars[idx]);
+//	logf("getc=%c index=%d, bits=%#x\n", c, idx, chars[idx]);
 	return chars[getCharIndex(c)];
 }
 
