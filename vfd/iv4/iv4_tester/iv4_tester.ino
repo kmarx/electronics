@@ -2,10 +2,11 @@
 #include "iv4.h"
 
 #define USE_SPI
-#define	   DATA_PIN 11
+//#undef USE_SPI
+#ifdef USE_SPI
 #define	   CLOCK_PIN 13
 #define	   LATCH_PIN 10 // 12 - only works if 1) meter leed attached 2) delay(1) after set LOW
-#ifdef USE_SPI
+#define	   DATA_PIN 11
 #else // For shiftOut()
 #define    CLOCK_PIN   2    // ATMEGA:  4   74HC595 SPI Clock Pin, SCK (pin 11 - SHCP shift register clock input)
 #define    LATCH_PIN   3    // ATMEGA:  5   74HC595 SPI Latch Pin, RCK (pin 12 -  STCP storage register clock input)
@@ -48,6 +49,7 @@ void testChars() {
 	testWord = "a01";
 	testWord = "a0123456789";
 	testWord = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+//	testWord = "A";
 //	testWord = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 //	testWord = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr";
 //	testWord = "abcdefghijklmnopqrstuvwxyz";
@@ -69,12 +71,25 @@ void testChars() {
 				break; // Get the user's input
 			}
 			//fuckf("testOutput[%d]=%c (%d)\n", i, testOutput[i], testOutput[i]);
-			displayBits(IV4.getc(testOutput[i]));
-			//delay(3);
+			//displayBits(IV4.getc(testOutput[i]));
+			sparkleChar(testOutput[i]);
+			delay(500);
 //			clearDisplay();
 		}
 		delay(1000);
 	}
+}
+
+void sparkleChar(char c) {
+	uint16_t charBits = IV4.getc(c);
+
+	const char *alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+	//fuckf("char=%c, charBits=%#x (%u)\n", c, charBits);
+	for (unsigned int i=0; i < strlen(alphabet) ; ++i) {
+		displayBits(IV4.getc(alphabet[i]));
+		delay(10);
+	}
+	displayBits(charBits);
 }
 
 void test1pin() {
@@ -199,10 +214,7 @@ void displayBits(int data) {
     uint8_t hi = data >> 8;
     uint8_t lo = data & 0xff;
 
-    // debug
-    char dbg[128];
-    //sprintf(dbg, "data=%02d (%0x) - high: %0x, low: %0x\n", data, data, hi, lo);
-    //Serial.print(dbg);
+    //fuckf("data=%u (%#x) - high: %0x, low: %0x\n", data, data, hi, lo);
 
     // debug
     digitalWrite(LED_BUILTIN, LOW);
@@ -243,7 +255,7 @@ void displayHiLo(int hi, int lo) {
 
     digitalWrite(LATCH_PIN, HIGH);
 
-    delay(SEGMENT_DELAY);
+    //delay(SEGMENT_DELAY);
 
 
 }
