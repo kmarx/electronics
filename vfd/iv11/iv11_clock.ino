@@ -52,7 +52,7 @@ int getMenuOption() {
 	int menuSize = sizeof(Menu)/sizeof(Menu[0]);
 	while (true) {
 		for (uint8_t i=0; i < menuSize; ++i) {
-			lprintf("[%d] - %s\n", i+1, Menu[0].name);
+			lprintf("[%d] - %s\n", i+1, Menu[i].name);
 		}
 		int option = readNumber("Select menu option: ");
 		if (option >= menuSize) {
@@ -64,24 +64,29 @@ int getMenuOption() {
 
 int readNumber(const char *prompt) {
 	lprintf("%s", prompt);
-	while (Serial.available() == 0)
+	while (Serial.available() < 1) {
 	   /* just wait */ ;
+	}
 
 	/* read the incoming byte
 	*/
+	logf("Serial available! About to readString()\n");
 	String resp = Serial.readString();
 	int option = resp.toInt();
+	lprintf("readNumber got string [%s]->option %d", resp.c_str(), option);
 	return option;
 }
 
 void testSegmentBits() {
+	lprintf("Displaying all segments...\n");
 	for (int i=0; i < 8; ++i) {
 		uint8_t bits = (1 << 0);
 		logf("%d: bits=%#0x\n", i, bits);
 		displayHiLo(0, bits);	// just use single tube
+		delay(1000);
 	}
 	while (true) {
-		uint8_t num = readNumber("Input a segment bit number, or -1 to return to menu: ");
+		int num = readNumber("Input a segment bit number, or -1 to return to menu: ");
 		if (num < 0) {
 			return;
 		} else if (num > 9) {
@@ -95,12 +100,14 @@ void testSegmentBits() {
 }
 
 void testNumber() {
+	lprintf("Displaying all numbers...\n");
 	for (int i=0; i < 8; ++i) {
 		logf("Displaying number %d\n", i);
 		showNumber(i);
+		delay(1000);
 	}
 	while (true) {
-		uint8_t number = readNumber("Input a number to display, or -1 to return to menu: ");
+		int number = readNumber("Input a number to display, or -1 to return to menu: ");
 		if (number < 0) {
 			return;
 		} else if (number > 9) {
@@ -115,7 +122,11 @@ void testNumber() {
 void testSimpleCount() {
 	int cnt = pow(10, NumTubes);
 
+	lprintf("Counting up to %d. Enter any key to abort...", cnt);
 	for (int i=0; i <  cnt; ++i) {
+		if (Serial.available()) {
+			lprintf("Simple count interrupted. Returning...\n");
+		}
 		showNumber(i);
 		delay(1000);
 	}
