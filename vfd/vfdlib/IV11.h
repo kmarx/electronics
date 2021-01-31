@@ -64,8 +64,8 @@ private:
 	static constexpr uint8_t digits[] = {
 			(IV11_T|IV11_TR|IV11_BR|IV11_B|IV11_BL|IV11_TL|0     ),	// 0
 			(0     |IV11_TR|IV11_BR|0     |0      |0      |0     ),	// 1
-			(IV11_T|IV11_TR|0      |IV11_B|IV11_BL|0      |0     ),	// 2
-			(IV11_T|0      |IV11_BR|IV11_B|IV11_BL|0      |IV11_M),	// 3
+			(IV11_T|IV11_TR|0      |IV11_B|IV11_BL|0      |IV11_M),	// 2
+			(IV11_T|IV11_TR|IV11_BR|IV11_B|0      |0      |IV11_M),	// 3
 			(0     |IV11_TR|IV11_BR|0     |0      |IV11_TL|IV11_M),	// 4
 			(IV11_T|0      |IV11_BR|IV11_B|0      |IV11_TL|IV11_M),	// 5
 			(IV11_T|0      |IV11_BR|IV11_B|IV11_BL|IV11_TL|IV11_M),	// 6

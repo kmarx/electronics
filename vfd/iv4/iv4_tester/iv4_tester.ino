@@ -86,7 +86,10 @@ void sparkleChar(char c) {
 	const char *alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 	//fuckf("char=%c, charBits=%#x (%u)\n", c, charBits);
 	for (unsigned int i=0; i < strlen(alphabet) ; ++i) {
-		displayBits(IV4.getc(alphabet[i]));
+		char dispChar = alphabet[i];
+		if (c != ' ') {
+			displayBits(IV4.getc(dispChar));
+		}
 		delay(10);
 	}
 	displayBits(charBits);

@@ -5,15 +5,28 @@
 
 
 // SPI
-#define	   CLOCK_PIN 13
-#define	   LATCH_PIN 10 // 12 - only works if 1) meter leed attached 2) delay(1) after set LOW
-#define	   DATA_PIN 11
+#define	   CLOCK_PIN 13	// Goes to pin 11 of HC74595
+#define	   LATCH_PIN 10 // Goes to pin 12 of HC74595
+#define	   DATA_PIN 11	// Goes to pin 9 of HC74595
 
 
 #define		HC74595_CLOCK_MHZ 31000000 // 31000000 // Per spec (I think?)
 #define		MX_DUTY_CYLE	100			// How much to sleep between multiplexed tube display
 
-int NumTubes = 1;
+/*
+ * Pre-declarations for local methods
+void testSegmentBits();
+void testHexPattern();
+void testSingleDigitNumber();
+void testSingleDigitNumber();
+void testFullNumber();
+void testSimpleCount();
+int readNumber(const char *prompt, int32_t min, int32_t max);
+void lprintf(const char fmt[], ...);
+void logf(const char fmt[], ...);
+ */
+
+int NumTubes = 2;
 
 IV11 *Tubes;
 
@@ -24,7 +37,9 @@ typedef struct _MenuItem {
 
 MenuItem Menu[] = {
 		{"Test segments", testSegmentBits},
-		{"Test numbers", testNumber},
+		{"Test hex bit pattern", testHexPattern},
+		{"Test single numbers", testSingleDigitNumber},
+		{"Test full number", testFullNumber},
 		{"Test simple count", testSimpleCount}
 };
 
@@ -54,67 +69,101 @@ int getMenuOption() {
 		for (uint8_t i=0; i < menuSize; ++i) {
 			lprintf("[%d] - %s\n", i+1, Menu[i].name);
 		}
-		int option = readNumber("Select menu option: ");
-		if (option >= menuSize) {
-			lprintf("Invalid menu option!\n");
-		}
-		return option;
+		int option = readNumber("Select menu option: ", 1, menuSize);
+		return option-1;
 	}
 }
 
-int readNumber(const char *prompt) {
+String readString(const char *prompt) {
 	lprintf("%s", prompt);
 	while (Serial.available() < 1) {
-	   /* just wait */ ;
+	   ; /* just wait */
+	   /* Note: if you never get past this in Eclipse,
+	    * Try deleting all ports from the "Serial monitor view" tab
+	    * and try again
+	    */
 	}
 
 	/* read the incoming byte
 	*/
-	logf("Serial available! About to readString()\n");
 	String resp = Serial.readString();
-	int option = resp.toInt();
-	lprintf("readNumber got string [%s]->option %d", resp.c_str(), option);
+
+	return resp;
+}
+
+long readNumber(const char *prompt, long min, long max) {
+	int option;
+	while (1) {
+		String resp = readString(prompt);
+//		option = resp.toInt();
+		option = atol(resp.c_str());
+		if (option < min || option > max) {
+			lprintf("%s: Invalid. Number must be between %ld and %ld\n", resp.c_str(), min, max);
+		} else {
+			break;
+		}
+	}
 	return option;
 }
 
 void testSegmentBits() {
 	lprintf("Displaying all segments...\n");
 	for (int i=0; i < 8; ++i) {
-		uint8_t bits = (1 << 0);
+		uint8_t bits = (1 << i);
 		logf("%d: bits=%#0x\n", i, bits);
 		displayHiLo(0, bits);	// just use single tube
 		delay(1000);
 	}
 	while (true) {
-		int num = readNumber("Input a segment bit number, or -1 to return to menu: ");
-		if (num < 0) {
+		int num = readNumber("Input a segment bit number, or -1 to return to menu: ", -1, 9);
+		uint8_t bit = (1 << num);
+		lprintf("Displaying bit=%d %#0x\n", num, bit);
+		displayHiLo(0, bit); // Just use one tube anode for this
+	}
+}
+
+void testHexPattern() {
+	while (true) {
+		String hexStr = readString("Input a hex bit pattern, or -1 to return to menu: ");
+		int hex;;
+		sscanf(hexStr.c_str(), "%x", &hex);
+		uint8_t bits = hex;
+		if (hex < 0) {
 			return;
-		} else if (num > 9) {
-			lprintf("%d: Invalid. Number must be between 0 and 9");
+		}
+		lprintf("Displaying '%s', decimal=%0d, bits=%#0x\n", hexStr.c_str(), bits, bits);
+		displayHiLo(0, bits);
+	}
+}
+
+void testSingleDigitNumber() {
+	lprintf("Displaying all numbers...\n");
+	for (int i=0; i < 10; ++i) {
+		logf("Displaying number %d\n", i);
+		showNumber(i, 100);
+	}
+	while (true) {
+		int number = readNumber("Input a number to display, or -1 to return to menu: ", 0, 9);
+		if (number < 0) {
+			return;
 		} else {
-			uint8_t bit = (1 << num);
-			lprintf("Displaying bit=%d %#0x\n", num, bit);
-			displayHiLo(0, bit); // Just use one tube anode for this
+			lprintf("Displaying number=%d\n", number);
+			showNumber(number, 100);
 		}
 	}
 }
 
-void testNumber() {
-	lprintf("Displaying all numbers...\n");
-	for (int i=0; i < 8; ++i) {
-		logf("Displaying number %d\n", i);
-		showNumber(i);
-		delay(1000);
-	}
+void testFullNumber() {
+	int max = pow(10, NumTubes) - 1;
+	lprintf("Display a number between 0 and %d\n", max);
 	while (true) {
-		int number = readNumber("Input a number to display, or -1 to return to menu: ");
-		if (number < 0) {
+		long number = readNumber("Input a number to display, or -1 to return to menu: ", -1, max);
+		long delay = readNumber("Input milliseconds delay for count, or -1 to return to menu: ", -1, 60*1000L);
+		if (number < 0 || delay < 0) {
 			return;
-		} else if (number > 9) {
-			lprintf("%d: Invalid. Number must be between 0 and 9");
 		} else {
 			lprintf("Displaying number=%d\n", number);
-			showNumber(number);
+			showNumber(number, 100);
 		}
 	}
 }
@@ -127,37 +176,46 @@ void testSimpleCount() {
 		if (Serial.available()) {
 			lprintf("Simple count interrupted. Returning...\n");
 		}
-		showNumber(i);
-		delay(1000);
+		showNumber(i, 100);
 	}
 }
 
 /*
- * Break given number into digits and display
+ * Break given number into digits and display for durMs
+ * milliseconds or forever if durMs < 0
  */
-void showNumber(uint8_t number) {
+void showNumber(uint8_t number, long durMs) {
 	uint8_t digits[NumTubes];
 
 	//logf("showNumber(%d)\n", number);
 	for (int tubeNum=0; tubeNum < NumTubes; ++tubeNum) {
 		// Get successive digits. E.g.,
-		// To get the '7' from 6712: (6712/100)%10 = (67)%10 = 87
+		// To get the '7' from 6712: (6712/100)%10 = (67)%10 = 7
 		uint8_t digit = (number/(int)pow(10, tubeNum)) % 10;
 		//logf("tubeNum=%d, digit=%d\n", tubeNum, digit);
 		digits[tubeNum] = digit;
 	}
-	showDigits(digits);
+	showDigits(digits, durMs);
 }
 
-/*
- * Show each respective digit on its corresponding tube
+/**
+ * Show each respective digit on its corresponding tube for given
+ * duration (in milliseconds) or forever if duration < 0
  */
-void showDigits(uint8_t digits[]) {
-	for (int i=0; i < NumTubes; ++i) {
-		logf("digit[%d]=%d... ", i, digits[i]);
-		display(i, digits[i]);
-		delay(MX_DUTY_CYLE);
-		logf("\n");
+void showDigits(uint8_t digits[], long durMs) {
+	uint32_t start = millis();
+	long end = start + durMs;
+	while (durMs < 0 || end - millis() > 0) {
+		if (Serial.available()) {
+			logf("showDigits: Interrupted by user input. Returning...\n");
+			return;
+		}
+		for (int i=0; i < NumTubes; ++i) {
+			logf("digit[%d]=%d... ", i, digits[i]);
+			display(i, digits[i]);
+			delay(MX_DUTY_CYLE);
+			logf("\n");
+		}
 	}
 }
 
@@ -170,7 +228,7 @@ void display(int tubeNum, int digit) {
 
 	tube.setNumber(digit);
 
-	displayHiLo((1 << tubeNum), tube.getBits());
+	displayHiLo((1 << tubeNum) - 1, tube.getBits());
 }
 
 /*
@@ -178,19 +236,41 @@ void display(int tubeNum, int digit) {
  * One 595 is controls which tube's anode is enabled
  * The other controls the segments to light up for the given tube
  */
-void displayHiLo(int anode, int segments) {
+void displayHiLo(uint8_t anode, uint8_t segments) {
 
     // Get the shift register ready!
     digitalWrite(LATCH_PIN, LOW);
 
 	SPI.beginTransaction(SPISettings(HC74595_CLOCK_MHZ, MSBFIRST, SPI_MODE0));
-	logf("anode=%#x, segments=%#x\n", anode, segments);
-	//SPI.transfer(&anode,1);
+	logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
 	SPI.transfer(&segments,1);
+	SPI.transfer(&anode,1);
 	SPI.endTransaction();
+
+	//delay(1000);	// debug since I don't have a data analyzer
 
 	// Flush the data from the registers
     digitalWrite(LATCH_PIN, HIGH);
+}
+
+/*
+ * ============== Local utils ======================
+ */
+
+/*
+ * String representation of binary bits in a byte
+ */
+const char *byte2bin(int x)
+{
+    static char b[9];
+    b[0] = '\0';
+
+    int z;
+    for (z = 128; z > 0; z >>= 1) {
+        strcat(b, ((x & z) == z) ? "1" : "0");
+    }
+
+    return b;
 }
 
 /*
