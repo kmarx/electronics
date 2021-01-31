@@ -97,7 +97,7 @@ boolean IV11::isDP() {
 
 // Bit level operations
 uint8_t IV11::setBits(uint8_t bits) {
-	logf("setBits(%#x)\n", bits);
+	//logf("setBits(%#x)\n", bits);
 	return this->_setCurrent(bits);
 }
 uint8_t IV11::getBits() {

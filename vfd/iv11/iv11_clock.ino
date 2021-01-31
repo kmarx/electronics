@@ -11,20 +11,7 @@
 
 
 #define		HC74595_CLOCK_MHZ 31000000 // 31000000 // Per spec (I think?)
-#define		MX_DUTY_CYLE	100			// How much to sleep between multiplexed tube display
-
-/*
- * Pre-declarations for local methods
-void testSegmentBits();
-void testHexPattern();
-void testSingleDigitNumber();
-void testSingleDigitNumber();
-void testFullNumber();
-void testSimpleCount();
-int readNumber(const char *prompt, int32_t min, int32_t max);
-void lprintf(const char fmt[], ...);
-void logf(const char fmt[], ...);
- */
+#define		MX_DUTY_CYLE	10			// How much to sleep between multiplexed tube display
 
 int NumTubes = 2;
 
@@ -98,7 +85,7 @@ long readNumber(const char *prompt, long min, long max) {
 //		option = resp.toInt();
 		option = atol(resp.c_str());
 		if (option < min || option > max) {
-			lprintf("%s: Invalid. Number must be between %ld and %ld\n", resp.c_str(), min, max);
+			lprintf("%s(%ld): Invalid. Number must be between %ld and %ld\n", resp.c_str(), option, min, max);
 		} else {
 			break;
 		}
@@ -158,12 +145,12 @@ void testFullNumber() {
 	lprintf("Display a number between 0 and %d\n", max);
 	while (true) {
 		long number = readNumber("Input a number to display, or -1 to return to menu: ", -1, max);
-		long delay = readNumber("Input milliseconds delay for count, or -1 to return to menu: ", -1, 60*1000L);
+		long delay = readNumber("Input milliseconds delay for count, or -1 to return to menu: ", -1, 60L*1000L);
 		if (number < 0 || delay < 0) {
 			return;
 		} else {
 			lprintf("Displaying number=%d\n", number);
-			showNumber(number, 100);
+			showNumber(number, delay);
 		}
 	}
 }
@@ -176,8 +163,10 @@ void testSimpleCount() {
 		if (Serial.available()) {
 			lprintf("Simple count interrupted. Returning...\n");
 		}
-		showNumber(i, 100);
+		// count down
+		showNumber(cnt-i, 100);
 	}
+	showNumber(0, 1000); // cheat and show 0 for a second
 }
 
 /*
@@ -205,16 +194,20 @@ void showNumber(uint8_t number, long durMs) {
 void showDigits(uint8_t digits[], long durMs) {
 	uint32_t start = millis();
 	long end = start + durMs;
-	while (durMs < 0 || end - millis() > 0) {
+	logf("ms dur=%ld, start=%ld, end=%ld\n", durMs, start, end);
+	while (durMs < 0 || (long)(end - millis()) > 0) {
+		//long now = millis();
+		//logf("ms start=%ld, end=%ld, now=%ld, dt=%ld\n", start, end, now, (end - now));
 		if (Serial.available()) {
 			logf("showDigits: Interrupted by user input. Returning...\n");
+			Serial.readString(); // hack to flush input before return
 			return;
 		}
 		for (int i=0; i < NumTubes; ++i) {
-			logf("digit[%d]=%d... ", i, digits[i]);
+			//logf("digit[%d]=%d... ", i, digits[i]);
 			display(i, digits[i]);
 			delay(MX_DUTY_CYLE);
-			logf("\n");
+			//logf("\n");
 		}
 	}
 }
@@ -228,7 +221,7 @@ void display(int tubeNum, int digit) {
 
 	tube.setNumber(digit);
 
-	displayHiLo((1 << tubeNum) - 1, tube.getBits());
+	displayHiLo((1 << tubeNum), tube.getBits());
 }
 
 /*
@@ -242,7 +235,7 @@ void displayHiLo(uint8_t anode, uint8_t segments) {
     digitalWrite(LATCH_PIN, LOW);
 
 	SPI.beginTransaction(SPISettings(HC74595_CLOCK_MHZ, MSBFIRST, SPI_MODE0));
-	logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
+	//logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
 	SPI.transfer(&segments,1);
 	SPI.transfer(&anode,1);
 	SPI.endTransaction();
