@@ -61,6 +61,7 @@ private:
 	void logf(const char fmt[], ...);
 	void  _dumpBits();
 
+	static bool initialized;
 	static constexpr uint8_t digits[] = {
 			(IV11_T|IV11_TR|IV11_BR|IV11_B|IV11_BL|IV11_TL|0     ),	// 0
 			(0     |IV11_TR|IV11_BR|0     |0      |0      |0     ),	// 1

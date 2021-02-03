@@ -9,11 +9,15 @@
 #include "IV11.h"
 
 constexpr uint8_t IV11::digits[]; // See iv11.h
+bool IV11::initialized = false;
 
 IV11::IV11() {
 	_setCurrent(0);
 	_setErrorMsg("");
-	_dumpBits();
+	if (!IV11::initialized) {
+		_dumpBits();
+		IV11::initialized = true;
+	}
 	return;
 }
 

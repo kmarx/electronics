@@ -13,7 +13,7 @@
 #define		HC74595_CLOCK_MHZ 31000000 // 31000000 // Per spec (I think?)
 #define		MX_DUTY_CYLE	10			// How much to sleep between multiplexed tube display
 
-int NumTubes = 2;
+int NumTubes = 4;
 
 IV11 *Tubes;
 
@@ -27,7 +27,8 @@ MenuItem Menu[] = {
 		{"Test hex bit pattern", testHexPattern},
 		{"Test single numbers", testSingleDigitNumber},
 		{"Test full number", testFullNumber},
-		{"Test simple count", testSimpleCount}
+		{"Test simple count", testSimpleCount},
+		{"Test count all tubes in parallel", testMultiplexDigits}
 };
 
 void setup(){
@@ -61,6 +62,13 @@ int getMenuOption() {
 	}
 }
 
+bool isUserInterupt() {
+	if (Serial.available()) {
+		Serial.readString(); // hack to flush input before return
+		return true;
+	}
+	return false;
+}
 String readString(const char *prompt) {
 	lprintf("%s", prompt);
 	while (Serial.available() < 1) {
@@ -79,10 +87,9 @@ String readString(const char *prompt) {
 }
 
 long readNumber(const char *prompt, long min, long max) {
-	int option;
+	long option;
 	while (1) {
 		String resp = readString(prompt);
-//		option = resp.toInt();
 		option = atol(resp.c_str());
 		if (option < min || option > max) {
 			lprintf("%s(%ld): Invalid. Number must be between %ld and %ld\n", resp.c_str(), option, min, max);
@@ -99,6 +106,10 @@ void testSegmentBits() {
 		uint8_t bits = (1 << i);
 		logf("%d: bits=%#0x\n", i, bits);
 		displayHiLo(0, bits);	// just use single tube
+		if (isUserInterupt()) {
+			logf("testSegmentBits: Interrupted by user input. Returning...\n");
+			return;
+		}
 		delay(1000);
 	}
 	while (true) {
@@ -155,10 +166,33 @@ void testFullNumber() {
 	}
 }
 
+void testMultiplexDigits() {
+
+	lprintf("Counting all tubes in parallel 0-10, each offset by one. Enter any key to abort...");
+
+	uint8_t digits[NumTubes];
+	// Start with array of digits each one bigger than the next. E.g., 0123...
+	for (int i=0; i < NumTubes; ++i) {
+		digits[i] = i;
+	}
+
+	while (true) {
+		if (Serial.available()) {
+			lprintf("Parallel counting interrupted. Returning...\n");
+		}
+		showDigits(digits, 200);
+		// No increment each digit
+		for (int i=0; i < NumTubes; ++i) {
+			++digits[i];
+			digits[i] %= 10;
+		}
+	}
+}
+
 void testSimpleCount() {
 	int cnt = pow(10, NumTubes);
 
-	lprintf("Counting up to %d. Enter any key to abort...", cnt);
+	lprintf("Counting down from %d. Enter any key to abort...", cnt);
 	for (int i=0; i <  cnt; ++i) {
 		if (Serial.available()) {
 			lprintf("Simple count interrupted. Returning...\n");
@@ -166,7 +200,7 @@ void testSimpleCount() {
 		// count down
 		showNumber(cnt-i, 100);
 	}
-	showNumber(0, 1000); // cheat and show 0 for a second
+	showNumber(0, 1000); // cheat and show 0 for a second5
 }
 
 /*
@@ -198,9 +232,8 @@ void showDigits(uint8_t digits[], long durMs) {
 	while (durMs < 0 || (long)(end - millis()) > 0) {
 		//long now = millis();
 		//logf("ms start=%ld, end=%ld, now=%ld, dt=%ld\n", start, end, now, (end - now));
-		if (Serial.available()) {
+		if (isUserInterupt()) {
 			logf("showDigits: Interrupted by user input. Returning...\n");
-			Serial.readString(); // hack to flush input before return
 			return;
 		}
 		for (int i=0; i < NumTubes; ++i) {
