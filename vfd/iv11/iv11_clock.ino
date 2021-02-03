@@ -11,9 +11,10 @@
 
 
 #define		HC74595_CLOCK_MHZ 31000000 // 31000000 // Per spec (I think?)
-#define		MX_DUTY_CYLE	10			// How much to sleep between multiplexed tube display
+#define		MX_DUTY_CYLE	1			// How much to sleep between multiplexed tube display
 
-int NumTubes = 4;
+int NumTubes = 3; // TODO works ok w/ 3 tubes. w/ 4 just the 4th is on super dim and not all segments working. all others off.
+				  // TODO maybe need to up voltage(s) in mplex mode?
 
 IV11 *Tubes;
 
@@ -22,12 +23,13 @@ typedef struct _MenuItem {
 	void (*callback)(void);
 } MenuItem;
 
+// TOOD with all menu items NumTubes > 2, the whole menu seems to bork memory and prints infinite nulls(?) on serial out
 MenuItem Menu[] = {
-		{"Test segments", testSegmentBits},
-		{"Test hex bit pattern", testHexPattern},
-		{"Test single numbers", testSingleDigitNumber},
-		{"Test full number", testFullNumber},
-		{"Test simple count", testSimpleCount},
+//		{"Test segments", testSegmentBits},
+//		{"Test hex bit pattern", testHexPattern},
+//		{"Test single numbers", testSingleDigitNumber},
+//		{"Test full number", testFullNumber},
+//		{"Test simple count", testSimpleCount},
 		{"Test count all tubes in parallel", testMultiplexDigits}
 };
 
@@ -180,7 +182,9 @@ void testMultiplexDigits() {
 		if (Serial.available()) {
 			lprintf("Parallel counting interrupted. Returning...\n");
 		}
-		showDigits(digits, 200);
+		if (!showDigits(digits, 500)) {
+			lprintf("Parallel counting interrupted in showDigits(). Returning...\n");
+		}
 		// No increment each digit
 		for (int i=0; i < NumTubes; ++i) {
 			++digits[i];
@@ -225,16 +229,16 @@ void showNumber(uint8_t number, long durMs) {
  * Show each respective digit on its corresponding tube for given
  * duration (in milliseconds) or forever if duration < 0
  */
-void showDigits(uint8_t digits[], long durMs) {
+bool showDigits(uint8_t digits[], long durMs) {
 	uint32_t start = millis();
 	long end = start + durMs;
-	logf("ms dur=%ld, start=%ld, end=%ld\n", durMs, start, end);
+	//logf("ms dur=%ld, start=%ld, end=%ld\n", durMs, start, end);
 	while (durMs < 0 || (long)(end - millis()) > 0) {
 		//long now = millis();
 		//logf("ms start=%ld, end=%ld, now=%ld, dt=%ld\n", start, end, now, (end - now));
 		if (isUserInterupt()) {
 			logf("showDigits: Interrupted by user input. Returning...\n");
-			return;
+			return false;
 		}
 		for (int i=0; i < NumTubes; ++i) {
 			//logf("digit[%d]=%d... ", i, digits[i]);
@@ -243,6 +247,7 @@ void showDigits(uint8_t digits[], long durMs) {
 			//logf("\n");
 		}
 	}
+	return true;
 }
 
 /*
@@ -273,7 +278,7 @@ void displayHiLo(uint8_t anode, uint8_t segments) {
 	SPI.transfer(&anode,1);
 	SPI.endTransaction();
 
-	//delay(1000);	// debug since I don't have a data analyzer
+	//delay(1000);	// debug since I don't have a logic analyzer
 
 	// Flush the data from the registers
     digitalWrite(LATCH_PIN, HIGH);
