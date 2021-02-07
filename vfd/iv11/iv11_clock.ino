@@ -36,7 +36,7 @@ const MenuItem Menu[] = {
 //		{"Test full number", testFullNumber},
 //		{"Test simple count", testSimpleCount},
 //		{"Test count all tubes in parallel", testMultiplexDigits},
-		{"Test display string", testDisplayString}
+//		{"Test display string", testDisplayString}
 };
 
 void setup(){
@@ -215,12 +215,22 @@ void testDisplayString() {
 
 	while (true) {
 		String str = readString("Enter a string to display. ':'/'.' are decimal point");
-		for (uint8_t i=0, tubeNum=0; i < str.length() && tubeNum < NumTubes; ++i) {
+
+		// Highest anode gets
+		int tubeNum = NumTubes - 1;
+		for (uint8_t i=0; i < str.length() && tubeNum > -1; ++i) {
 			char c = str.charAt(i);
 			Tubes[tubeNum].setChar(c);
-			if (c == '.' || c == ':') {
-				Tubes[tubeNum].setDP();
+			// Look ahead for additional DP for this char if not already an explicit DP
+			//  E.g., 12.34.56 would set DP on '2' and '4'
+			if (c != '.' && c != ':') {
+				char next = i+1 < (uint8_t)str.length() ? str.charAt(i+1) : 0;
+				if (next == '.' || next == ':') {
+					Tubes[tubeNum].setDP();
+					++i;
+				}
 			}
+			--tubeNum;
 		}
 		lprintf("Displaying [%s]\n", str.c_str());
 		if (Serial.available()) {
@@ -335,7 +345,7 @@ void displayHiLo(uint8_t anode, uint8_t segments) {
     digitalWrite(LATCH_PIN, LOW);
 
 	SPI.beginTransaction(SPISettings(HC74595_CLOCK_MHZ, MSBFIRST, SPI_MODE0));
-	logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
+	//logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
 	SPI.transfer(&segments,1);
 	SPI.transfer(&anode,1);
 	SPI.endTransaction();
