@@ -8,7 +8,8 @@
 #include <Arduino.h>
 #include "IV11.h"
 
-constexpr uint8_t IV11::digits[]; // See iv11.h
+constexpr uint8_t IV11::digits[];	// See iv11.h
+//constexpr uint8_t IV11::chars[];	// See iv11.h
 bool IV11::initialized = false;
 
 IV11::IV11() {
@@ -39,6 +40,18 @@ IV11::~IV11() {
  * Private
  * ----------------------------------------------------------------------
  */
+
+uint8_t IV11::_charToBits(char c) {
+	uint8_t bits = 0;
+	if (isdigit(c)) {
+		uint8_t idx = c - DIGITS_OFFSET;
+		bits = digits[idx];
+	} else {
+		uint8_t idx = c - CHARS_OFFSET;
+		//bits = chars[idx];
+	}
+	return bits;
+}
 
 uint8_t IV11::_getCurrent() { return this->_current; }
 uint8_t IV11::_setCurrent(uint8_t current) {
@@ -81,6 +94,12 @@ int IV11::setNumber(int n) {
 		return IV11_ERROR;
 	}
 	uint8_t bits = digits[n] | (isDP() ? IV11_DP : 0);
+	return this->setBits(bits);
+}
+
+int IV11::setChar(char c) {
+	uint8_t bits = _charToBits(c);
+	logf("setChar(%c) => bits=%#x\n", c, bits);
 	return this->setBits(bits);
 }
 

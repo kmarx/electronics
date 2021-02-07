@@ -11,26 +11,32 @@
 
 
 #define		HC74595_CLOCK_MHZ 31000000 // 31000000 // Per spec (I think?)
-#define		MX_DUTY_CYLE	1			// How much to sleep between multiplexed tube display
+#define		MX_DUTY_CYLE	2			// How much to sleep between multiplexed tube display
 
-int NumTubes = 3; // TODO works ok w/ 3 tubes. w/ 4 just the 4th is on super dim and not all segments working. all others off.
+int NumTubes = 6; // TODO works ok w/ 3 tubes. w/ 4 just the 4th is on super dim and not all segments working. all others off.
 				  // TODO maybe need to up voltage(s) in mplex mode?
 
 IV11 *Tubes;
 
-typedef struct _MenuItem {
+class MenuItem {
+public:
 	const char *name;
 	void (*callback)(void);
-} MenuItem;
+	MenuItem(const char *name, void (*callback)(void)) {
+		this->name = name;
+		this->callback = callback;
+	}
+};
 
 // TOOD with all menu items NumTubes > 2, the whole menu seems to bork memory and prints infinite nulls(?) on serial out
-MenuItem Menu[] = {
+const MenuItem Menu[] = {
 //		{"Test segments", testSegmentBits},
 //		{"Test hex bit pattern", testHexPattern},
 //		{"Test single numbers", testSingleDigitNumber},
 //		{"Test full number", testFullNumber},
 //		{"Test simple count", testSimpleCount},
-		{"Test count all tubes in parallel", testMultiplexDigits}
+//		{"Test count all tubes in parallel", testMultiplexDigits},
+		{"Test display string", testDisplayString}
 };
 
 void setup(){
@@ -49,8 +55,12 @@ void setup(){
 
 void loop()
 {
+	/*
+	 *
 	int option = getMenuOption();
 	Menu[option].callback();
+	 */
+	testDisplayString();
 }
 
 int getMenuOption() {
@@ -107,7 +117,7 @@ void testSegmentBits() {
 	for (int i=0; i < 8; ++i) {
 		uint8_t bits = (1 << i);
 		logf("%d: bits=%#0x\n", i, bits);
-		displayHiLo(0, bits);	// just use single tube
+		displayHiLo(1, bits);	// just use single tube
 		if (isUserInterupt()) {
 			logf("testSegmentBits: Interrupted by user input. Returning...\n");
 			return;
@@ -116,9 +126,12 @@ void testSegmentBits() {
 	}
 	while (true) {
 		int num = readNumber("Input a segment bit number, or -1 to return to menu: ", -1, 9);
+		if (num < 0) {
+			return;
+		}
 		uint8_t bit = (1 << num);
 		lprintf("Displaying bit=%d %#0x\n", num, bit);
-		displayHiLo(0, bit); // Just use one tube anode for this
+		displayHiLo(1, bit); // Just use one tube anode for this
 	}
 }
 
@@ -158,12 +171,13 @@ void testFullNumber() {
 	lprintf("Display a number between 0 and %d\n", max);
 	while (true) {
 		long number = readNumber("Input a number to display, or -1 to return to menu: ", -1, max);
-		long delay = readNumber("Input milliseconds delay for count, or -1 to return to menu: ", -1, 60L*1000L);
-		if (number < 0 || delay < 0) {
+//		long delay = readNumber("Input milliseconds delay for count, or -1 to return to menu: ", -1, 60L*1000L);
+//		if (number < 0 || delay < 0) {
+		if (number < 0) {
 			return;
 		} else {
 			lprintf("Displaying number=%d\n", number);
-			showNumber(number, delay);
+			showNumber(number, -1);
 		}
 	}
 }
@@ -181,15 +195,39 @@ void testMultiplexDigits() {
 	while (true) {
 		if (Serial.available()) {
 			lprintf("Parallel counting interrupted. Returning...\n");
+			return;
 		}
 		if (!showDigits(digits, 500)) {
 			lprintf("Parallel counting interrupted in showDigits(). Returning...\n");
+			return;
 		}
 		// No increment each digit
 		for (int i=0; i < NumTubes; ++i) {
 			++digits[i];
 			digits[i] %= 10;
 		}
+	}
+}
+
+void testDisplayString() {
+
+	lprintf("Test display string. Enter any key to abort...\n");
+
+	while (true) {
+		String str = readString("Enter a string to display. ':'/'.' are decimal point");
+		for (uint8_t i=0, tubeNum=0; i < str.length() && tubeNum < NumTubes; ++i) {
+			char c = str.charAt(i);
+			Tubes[tubeNum].setChar(c);
+			if (c == '.' || c == ':') {
+				Tubes[tubeNum].setDP();
+			}
+		}
+		lprintf("Displaying [%s]\n", str.c_str());
+		if (Serial.available()) {
+			lprintf("Display string test interrupted. Returning...\n");
+			return;
+		}
+		write_vfds(-1L);
 	}
 }
 
@@ -223,6 +261,30 @@ void showNumber(uint8_t number, long durMs) {
 		digits[tubeNum] = digit;
 	}
 	showDigits(digits, durMs);
+}
+
+/**
+ * Show each respective digit on its corresponding tube for given
+ * duration (in milliseconds) or forever if duration < 0
+ */
+bool write_vfds(long durMs) {
+	uint32_t start = millis();
+	long end = start + durMs;
+	//logf("ms dur=%ld, start=%ld, end=%ld\n", durMs, start, end);
+	while (durMs < 0 || (long)(end - millis()) > 0) {
+		//long now = millis();
+		//logf("ms start=%ld, end=%ld, now=%ld, dt=%ld\n", start, end, now, (end - now));
+		if (isUserInterupt()) {
+			logf("write_vfds: Interrupted by user input. Returning...\n");
+			return false;
+		}
+		for (int i=0; i < NumTubes; ++i) {
+			displayHiLo((1 << i), Tubes[i].getBits());
+			delay(MX_DUTY_CYLE);
+			//logf("\n");
+		}
+	}
+	return true;
 }
 
 /**
@@ -273,7 +335,7 @@ void displayHiLo(uint8_t anode, uint8_t segments) {
     digitalWrite(LATCH_PIN, LOW);
 
 	SPI.beginTransaction(SPISettings(HC74595_CLOCK_MHZ, MSBFIRST, SPI_MODE0));
-	//logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
+	logf("anode=%#x, segments=%#x (%s)\n", anode, segments, byte2bin(segments));
 	SPI.transfer(&segments,1);
 	SPI.transfer(&anode,1);
 	SPI.endTransaction();
